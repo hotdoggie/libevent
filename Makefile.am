@@ -5,8 +5,8 @@
 # See LICENSE for copying information.
 
 # 'foreign' means that we're not enforcing GNU package rules strictly.
-# '1.9' means that we need automake 1.9 or later (and we do).
-AUTOMAKE_OPTIONS = foreign 1.9 subdir-objects
+# '1.13' means that we need automake 1.13 or later (and we do).
+AUTOMAKE_OPTIONS = foreign 1.13 subdir-objects
 
 ACLOCAL_AMFLAGS = -I m4
 
@@ -127,9 +127,14 @@ CMAKE_FILES = \
 	cmake/LibeventConfig.cmake.in \
 	cmake/LibeventConfigVersion.cmake.in \
 	cmake/VersionViaGit.cmake \
+	cmake/Uninstall.cmake.in \
+	cmake/UseDoxygen.cmake \
 	event-config.h.cmake \
 	evconfig-private.h.cmake \
 	CMakeLists.txt
+
+DOCUMENTATION_FILES = \
+	Documentation/Building.md
 
 EXTRA_DIST = \
 	ChangeLog-1.4 \
@@ -142,7 +147,9 @@ EXTRA_DIST = \
 	make-event-config.sed \
 	whatsnew-2.0.txt \
 	whatsnew-2.1.txt \
+	README.md \
 	$(CMAKE_FILES) \
+	$(DOCUMENTATION_FILES) \
 	$(PLATFORM_DEPENDENT_SRC)
 
 LIBEVENT_LIBS_LA = libevent.la libevent_core.la libevent_extra.la
@@ -288,12 +295,15 @@ libevent_openssl_la_CPPFLAGS = $(AM_CPPFLAGS) $(OPENSSL_INCS)
 endif
 
 noinst_HEADERS +=				\
+	WIN32-Code/getopt.h			\
+	WIN32-Code/getopt.c			\
+	WIN32-Code/getopt_long.c	\
 	WIN32-Code/tree.h			\
-	bufferevent-internal.h			\
-	changelist-internal.h			\
+	bufferevent-internal.h		\
+	changelist-internal.h		\
 	compat/sys/queue.h			\
 	defer-internal.h			\
-	epolltable-internal.h			\
+	epolltable-internal.h		\
 	evbuffer-internal.h			\
 	event-internal.h			\
 	evmap-internal.h			\
@@ -330,9 +340,7 @@ endif
 
 verify: check
 
-doxygen: FORCE
-	doxygen $(srcdir)/Doxyfile
-FORCE:
+include doxygen.am
 
 DISTCLEANFILES += *~ libevent.pc libevent_core.pc libevent_extra.pc ./include/event2/event-config.h
 

@@ -47,14 +47,15 @@ The configure script also supports the following flags:
                            management functions.
  --disable-openssl         Disable support for OpenSSL encryption.
  --disable-thread-support  Don't support multithreaded environments.
+ --enable-doxygen-doc      Build doxygen documentation
 ```
 
 ## Building on Windows
 __Download CMake for Windows [here](https://cmake.org/download/)__
 ```
 > md build && cd build
-> cmake -G "Visual Studio 10" .. # Or use any generator you want to use. Run cmake --help for a list
-> start libevent.sln
+> cmake -G "Visual Studio 10" ..   # Or use any generator you want to use. Run cmake --help for a list
+> cmake --build . --config Release # Or "start libevent.sln" and build with menu in Visual Studio.
 ```
 In the above, the ".." refers to the dir containing the Libevent source code. You can build multiple versions (with different compile time settings) from the same source tree by creating other build directories.
 
@@ -119,6 +120,9 @@ EVENT__ENABLE_VERBOSE_DEBUG:BOOL=OFF
 # on the the cross compilation target to verify that it works. See CMake
 # documentation for try_run for more details
 EVENT__FORCE_KQUEUE_CHECK:BOOL=OFF
+
+# Build documentation with doxygen
+EVENT__DOXYGEN:BOOL=OFF
 ```
 __More variables can be found by running `cmake -LAH <sourcedir_path>`__
 

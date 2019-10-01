@@ -19,7 +19,7 @@
 #       start libevent.sln
 #
 
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.1.2 FATAL_ERROR)
 
 if (POLICY CMP0054)
     cmake_policy(SET CMP0054 NEW)
@@ -33,7 +33,7 @@ endif()
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release
-        CACHE STRING "Set build type to Debug o Release (default Release)" FORCE)
+        CACHE STRING "Set build type to Debug or Release (default Release)" FORCE)
 endif()
 string(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWER)
 
@@ -83,6 +83,14 @@ set(EVENT_ABI_LIBVERSION
 
 set(EVENT_PACKAGE_VERSION
     "${EVENT_VERSION_MAJOR}.${EVENT_VERSION_MINOR}.${EVENT_VERSION_PATCH}")
+
+# equals to VERSION_INFO in Makefile.am
+set(EVENT_ABI_LIBVERSION_CURRENT   1)
+set(EVENT_ABI_LIBVERSION_REVISION  0)
+set(EVENT_ABI_LIBVERSION_AGE       0)
+
+# equals to RELEASE in Makefile.am
+set(EVENT_PACKAGE_RELEASE 2.2)
 
 set(EVENT_NUMERIC_VERSION 0x02020001)
 
@@ -187,7 +195,7 @@ endif()
 if (("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU") OR (${CLANG}))
     set(GNUC 1)
 endif()
-if (("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC") OR (${CLANG}))
+if (("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC") OR ("${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC"))
     set(MSVC 1)
 endif()
 
@@ -262,6 +270,7 @@ if (${GNUC})
          -Wall -Wextra -Wno-unused-parameter -Wstrict-aliasing -Wstrict-prototypes
 
          -fno-strict-aliasing # gcc 2.9.5+
+         -Wmissing-prototypes
 
          # gcc 4
          -Winit-self
@@ -276,7 +285,7 @@ if (${GNUC})
          # gcc 4.5
          -Wlogical-op
 
-	 -Wwrite-strings
+         -Wwrite-strings
     )
 
     if (${CLANG})
@@ -321,7 +330,7 @@ endif()
 # Winsock.
 if(WIN32)
     set(CMAKE_EXTRA_INCLUDE_FILES winsock2.h ws2tcpip.h)
-    set(CMAKE_REQUIRED_LIBRARIES  ws2_32.lib)
+    set(CMAKE_REQUIRED_LIBRARIES  ws2_32.lib shell32.lib advapi32.lib)
     set(CMAKE_REQUIRED_DEFINITIONS -FIwinsock2.h -FIws2tcpip.h)
 endif()
 if (SOLARIS)
@@ -335,6 +344,10 @@ if (NOT DEFINED _GNU_SOURCE)
   if (NOT _GNU_SOURCE)
     unset(_GNU_SOURCE CACHE)
     CHECK_SYMBOL_EXISTS(_GNU_SOURCE "features.h" _GNU_SOURCE)
+  endif()
+
+  if (ANDROID)
+    set(_GNU_SOURCE TRUE)
   endif()
 endif()
 
@@ -352,10 +365,28 @@ if(EVENT__HAVE_SYS_SOCKET_H)
     list(APPEND CMAKE_EXTRA_INCLUDE_FILES sys/socket.h)
 endif()
 
+CHECK_INCLUDE_FILE(sys/random.h EVENT__HAVE_SYS_RANDOM_H)
+if(EVENT__HAVE_SYS_RANDOM_H)
+    list(APPEND CMAKE_EXTRA_INCLUDE_FILES sys/random.h)
+endif()
+
 CHECK_INCLUDE_FILE(netinet/in.h EVENT__HAVE_NETINET_IN_H)
 if(EVENT__HAVE_NETINET_IN_H)
     list(APPEND CMAKE_EXTRA_INCLUDE_FILES netinet/in.h)
 endif()
+
+CHECK_INCLUDE_FILE(sys/un.h EVENT__HAVE_SYS_UN_H)
+if(EVENT__HAVE_SYS_UN_H)
+    list(APPEND CMAKE_EXTRA_INCLUDE_FILES sys/un.h)
+endif()
+
+if(WIN32)
+    CHECK_INCLUDE_FILE(afunix.h EVENT__HAVE_AFUNIX_H)
+    if(EVENT__HAVE_AFUNIX_H)
+        list(APPEND CMAKE_EXTRA_INCLUDE_FILES afunix.h)
+    endif()
+endif()
+CHECK_TYPE_SIZE("struct sockaddr_un" EVENT__HAVE_STRUCT_SOCKADDR_UN)
 
 CHECK_INCLUDE_FILE(netinet/in6.h EVENT__HAVE_NETINET_IN6_H)
 if(EVENT__HAVE_NETINET_IN6_H)
@@ -495,6 +526,13 @@ if(NOT WIN32)
     CHECK_FUNCTION_EXISTS_EX(select EVENT__HAVE_SELECT)
 endif()
 
+if(WIN32)
+    CHECK_FUNCTION_EXISTS_EX(_gmtime64_s EVENT__HAVE__GMTIME64_S)
+    if (NOT EVENT__HAVE__GMTIME64_S)
+        CHECK_FUNCTION_EXISTS_EX(_gmtime64 EVENT__HAVE__GMTIME64)
+    endif()
+endif()
+
 CHECK_TYPE_SIZE("uint8_t" EVENT__HAVE_UINT8_T)
 CHECK_TYPE_SIZE("uint16_t" EVENT__HAVE_UINT16_T)
 CHECK_TYPE_SIZE("uint32_t" EVENT__HAVE_UINT32_T)
@@ -533,9 +571,8 @@ CHECK_SYMBOL_EXISTS("__FUNCTION__" "" EVENT__HAVE___FUNCTION__)
 CHECK_SYMBOL_EXISTS(TAILQ_FOREACH sys/queue.h EVENT__HAVE_TAILQFOREACH)
 CHECK_CONST_EXISTS(CTL_KERN sys/sysctl.h EVENT__HAVE_DECL_CTL_KERN)
 CHECK_CONST_EXISTS(KERN_ARND sys/sysctl.h EVENT__HAVE_DECL_KERN_ARND)
-CHECK_CONST_EXISTS(KERN_RANDOM sys/sysctl.h EVENT__HAVE_DECL_KERN_RANDOM)
-CHECK_CONST_EXISTS(RANDOM_UUID sys/sysctl.h EVENT__HAVE_DECL_RANDOM_UUID)
 CHECK_SYMBOL_EXISTS(F_SETFD fcntl.h EVENT__HAVE_SETFD)
+CHECK_FUNCTION_EXISTS_EX(getrandom EVENT__HAVE_GETRANDOM)
 
 CHECK_TYPE_SIZE(fd_mask EVENT__HAVE_FD_MASK)
 
@@ -613,7 +650,7 @@ CHECK_TYPE_SIZE("time_t" EVENT__SIZEOF_TIME_T)
 
 # Verify kqueue works with pipes.
 if (EVENT__HAVE_KQUEUE)
-    if (CMAKE_CROSSCOMPILING AND NOT EVENT__FORCE_KQUEUE_CHECK)
+    if ((CMAKE_CROSSCOMPILING OR APPLE) AND NOT EVENT__FORCE_KQUEUE_CHECK)
         message(WARNING "Cannot check if kqueue works with pipes when crosscompiling, use EVENT__FORCE_KQUEUE_CHECK to be sure (this requires manually running a test program on the cross compilation target)")
         set(EVENT__HAVE_WORKING_KQUEUE 1)
     else()
@@ -862,7 +899,7 @@ if(WIN32)
     list(APPEND HDR_PRIVATE WIN32-Code/getopt.h)
 
     set(EVENT__DNS_USE_FTIME_FOR_ID 1)
-    set(LIB_PLATFORM ws2_32)
+    set(LIB_PLATFORM ws2_32 shell32 advapi32)
     add_definitions(
             -D_CRT_SECURE_NO_WARNINGS
             -D_CRT_NONSTDC_NO_DEPRECATE)
@@ -947,6 +984,9 @@ macro(add_sample_prog ssl name)
 
     if (${ssl})
         target_link_libraries(${name} event_openssl)
+        if(WIN32)
+            target_link_libraries(${name} crypt32)
+        endif()
     endif()
 endmacro()
 if (NOT EVENT__DISABLE_SAMPLES)
@@ -1459,6 +1499,31 @@ install(FILES
 install(EXPORT LibeventTargets
         DESTINATION "${DEF_INSTALL_CMAKE_DIR}"
         COMPONENT dev)
+
+# Install the scripts.
+install(PROGRAMS
+       ${CMAKE_CURRENT_SOURCE_DIR}/event_rpcgen.py
+       DESTINATION "bin"
+       COMPONENT runtime)
+
+# Create documents with doxygen.
+option(EVENT__DOXYGEN
+    "Enables doxygen documentation" OFF)
+if (EVENT__DOXYGEN)
+    include(UseDoxygen)
+    UseDoxygen()
+endif()
+
+
+# Create the uninstall target.
+# https://gitlab.kitware.com/cmake/community/wikis/FAQ#can-i-do-make-uninstall-with-cmake
+configure_file(${PROJECT_SOURCE_DIR}/cmake/Uninstall.cmake.in
+               ${PROJECT_BINARY_DIR}/Uninstall.cmake
+               @ONLY)
+
+add_custom_target(uninstall
+                  COMMAND ${CMAKE_COMMAND} -P ${PROJECT_BINARY_DIR}/Uninstall.cmake)
+
 
 message(STATUS "")
 message(STATUS "        ---( Libevent " ${EVENT_VERSION} " )---")

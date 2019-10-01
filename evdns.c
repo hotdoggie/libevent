@@ -77,6 +77,7 @@
 #include <stdarg.h>
 #ifdef _WIN32
 #include <winsock2.h>
+#include <winerror.h>
 #include <ws2tcpip.h>
 #ifndef _WIN32_IE
 #define _WIN32_IE 0x400
@@ -345,6 +346,9 @@ struct evdns_base {
 	ev_socklen_t global_outgoing_addrlen;
 
 	struct timeval global_getaddrinfo_allow_skew;
+
+	int so_rcvbuf;
+	int so_sndbuf;
 
 	int getaddrinfo_ipv4_timeouts;
 	int getaddrinfo_ipv6_timeouts;
@@ -1762,6 +1766,7 @@ evdns_close_server_port(struct evdns_server_port *port)
 		server_port_free(port);
 	} else {
 		port->closing = 1;
+		EVDNS_UNLOCK(port);
 	}
 }
 
@@ -2533,6 +2538,23 @@ evdns_nameserver_add_impl_(struct evdns_base *base, const struct sockaddr *addre
 			base->global_outgoing_addrlen) < 0) {
 			log(EVDNS_LOG_WARN,"Couldn't bind to outgoing address");
 			err = 2;
+			goto out2;
+		}
+	}
+
+	if (base->so_rcvbuf) {
+		if (setsockopt(ns->socket, SOL_SOCKET, SO_RCVBUF,
+		    (void *)&base->so_rcvbuf, sizeof(base->so_rcvbuf))) {
+			log(EVDNS_LOG_WARN, "Couldn't set SO_RCVBUF to %i", base->so_rcvbuf);
+			err = -SO_RCVBUF;
+			goto out2;
+		}
+	}
+	if (base->so_sndbuf) {
+		if (setsockopt(ns->socket, SOL_SOCKET, SO_SNDBUF,
+		    (void *)&base->so_sndbuf, sizeof(base->so_sndbuf))) {
+			log(EVDNS_LOG_WARN, "Couldn't set SO_SNDBUF to %i", base->so_sndbuf);
+			err = -SO_SNDBUF;
 			goto out2;
 		}
 	}
@@ -3530,6 +3552,16 @@ evdns_base_set_option_impl(struct evdns_base *base,
 		    val);
 		memcpy(&base->global_nameserver_probe_initial_timeout, &tv,
 		    sizeof(tv));
+	} else if (str_matches_option(option, "so-rcvbuf:")) {
+		int buf = strtoint(val);
+		if (!(flags & DNS_OPTION_MISC)) return 0;
+		log(EVDNS_LOG_DEBUG, "Setting SO_RCVBUF to %s", val);
+		base->so_rcvbuf = buf;
+	} else if (str_matches_option(option, "so-sndbuf:")) {
+		int buf = strtoint(val);
+		if (!(flags & DNS_OPTION_MISC)) return 0;
+		log(EVDNS_LOG_DEBUG, "Setting SO_SNDBUF to %s", val);
+		base->so_sndbuf = buf;
 	}
 	return 0;
 }
@@ -4000,7 +4032,7 @@ evdns_base_new(struct event_base *event_base, int flags)
 #else
 		r = evdns_base_resolv_conf_parse(base, opts, "/etc/resolv.conf");
 #endif
-		if (r == -1) {
+		if (r) {
 			evdns_base_free_and_unlock(base, 0);
 			return NULL;
 		}

@@ -8,6 +8,7 @@
 [![Travis Build Status](https://travis-ci.org/libevent/libevent.svg?branch=master)](https://travis-ci.org/libevent/libevent)
 [![Coverage Status](https://coveralls.io/repos/github/libevent/libevent/badge.svg)](https://coveralls.io/github/libevent/libevent)
 [![Join the chat at https://gitter.im/libevent/libevent](https://badges.gitter.im/libevent/libevent.svg)](https://gitter.im/libevent/libevent?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![doxygen](https://img.shields.io/badge/doxygen-documentation-blue.svg)](https://libevent.org/doc)
 
 
 
@@ -30,8 +31,8 @@ Install CMake: <https://www.cmake.org>
 
 ```
 $ md build && cd build
-$ cmake -G "Visual Studio 10" ..   # Or whatever generator you want to use cmake --help for a list.
-$ start libevent.sln
+$ cmake -G "Visual Studio 10" ..   # Or use any generator you want to use. Run cmake --help for a list
+$ cmake --build . --config Release # Or "start libevent.sln" and build with menu in Visual Studio.
 ```
 
 See [Documentation/Building#Building on Windows](/Documentation/Building.md#building-on-windows) for more information

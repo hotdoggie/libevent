@@ -198,6 +198,12 @@ basic_test_setup(const struct testcase_t *testcase)
 		return (void*)TT_SKIP;
 #endif
 
+	if (testcase->flags & TT_ENABLE_DEBUG_MODE &&
+		!libevent_tests_running_in_debug_mode) {
+		event_enable_debug_mode();
+		libevent_tests_running_in_debug_mode = 1;
+	}
+
 	if (testcase->flags & TT_NEED_THREADS) {
 		if (!(testcase->flags & TT_FORK))
 			return NULL;
